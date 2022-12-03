@@ -4,7 +4,7 @@
 
 auto ok = false;
 
-QMap<QString, QPair<QTcpSocket*, QTcpSocket*>> clients;
+QPair<QTcpSocket*, QTcpSocket*> clients;
 
 void connectSockets(const QString& srsName, QTcpSocket& srs, QTcpSocket& dst)
 {
@@ -26,23 +26,20 @@ void catchKeyPacket(QTcpSocket* client)
             client->deleteLater();
         }
         else {
-            if (!clients.contains(key)) {
-                clients.insert(key, {});
+            if (!clients.first) {
+                clients.first = client;
             }
-            if (!clients[key].first) {
-                clients[key].first = client;
-            }
-            else if (!clients[key].second) {
-                clients[key].second = client;
+            else if (!clients.second) {
+                clients.second = client;
             }
             else {
                 qCritical() << "Internal error!";
                 client->deleteLater();
             }
 
-            if (clients[key].first && clients[key].second) {
-                connectSockets(key + "_one", *clients[key].first, *clients[key].second);
-                connectSockets(key + "_two", *clients[key].second, *clients[key].first);
+            if (clients.first && clients.second) {
+                connectSockets(key + "_one", *clients.first, *clients.second);
+                connectSockets(key + "_two", *clients.second, *clients.first);
             }
         }
 
@@ -50,25 +47,13 @@ void catchKeyPacket(QTcpSocket* client)
     });
 }
 
-QString clientKey(QTcpSocket* client)
-{
-    for (const auto& value : qAsConst(clients)) {
-        if ((client == value.first) || (client == value.second)) {
-            return clients.key(value);
-        }
-    }
-    return "no_keyword";
-}
-
-
 void watchClientConnection(QTcpSocket* client)
 {
-    QObject::connect(client, &QTcpSocket::disconnected, client, [client]() {
-        const auto key = clientKey(client);
-        qDebug() << "Client" << key << "disconnected";
-        clients.value(key).first->deleteLater();
-        clients.value(key).second->deleteLater();
-        clients.remove(key);
+    QObject::connect(client, &QTcpSocket::disconnected, client, []() {
+        qDebug() << "Client disconnected";
+        clients.first->deleteLater();
+        clients.second->deleteLater();
+        clients = {};
     });
 }
 
