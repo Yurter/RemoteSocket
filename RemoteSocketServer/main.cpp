@@ -41,6 +41,7 @@ void catchHelloPacket(QTcpSocket* socket)
         }
 
         if (ClientSocket && RemoteSocket) {
+            qInfo() << "About to connect sockets...";
             connectSockets("cli", *ClientSocket, *RemoteSocket);
             connectSockets("rms", *RemoteSocket, *ClientSocket);
             delete context;
