@@ -18,32 +18,22 @@ void catchKeyPacket(QTcpSocket* client)
 {
     const auto context = new QObject { client };
     QObject::connect(client, &QTcpSocket::readyRead, context, [context, &client]() {
-        const auto keyPacket = client->readAll();
-        const auto key = QString { keyPacket };
-
-        if ("no_keyword" == key) {
-            qCritical() << "Bad key received:" << key;
-            client->deleteLater();
+        if (!clients.first) {
+            clients.first = client;
+        }
+        else if (!clients.second) {
+            clients.second = client;
         }
         else {
-            if (!clients.first) {
-                clients.first = client;
-            }
-            else if (!clients.second) {
-                clients.second = client;
-            }
-            else {
-                qCritical() << "Internal error!";
-                client->deleteLater();
-            }
-
-            if (clients.first && clients.second) {
-                connectSockets(key + "_one", *clients.first, *clients.second);
-                connectSockets(key + "_two", *clients.second, *clients.first);
-            }
+            qCritical() << "Internal error!";
+            client->deleteLater();
         }
 
-        delete context;
+        if (clients.first && clients.second) {
+            connectSockets("_one", *clients.first, *clients.second);
+            connectSockets("_two", *clients.second, *clients.first);
+            delete context;
+        }
     });
 }
 
