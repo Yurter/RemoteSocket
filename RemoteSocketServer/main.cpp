@@ -4,7 +4,16 @@
 
 auto ok = false;
 
-QPair<QTcpSocket*, QTcpSocket*> clients;
+QTcpSocket* ClientSocket = nullptr;
+QTcpSocket* RemoteSocket = nullptr;
+
+void changeSocket(QTcpSocket* oldSocket, QTcpSocket* newSocket)
+{
+    if (oldSocket) {
+        oldSocket->deleteLater();
+    }
+    oldSocket = newSocket;
+}
 
 void connectSockets(const QString& srsName, QTcpSocket& srs, QTcpSocket& dst)
 {
@@ -14,36 +23,34 @@ void connectSockets(const QString& srsName, QTcpSocket& srs, QTcpSocket& dst)
     });
 }
 
-void catchKeyPacket(QTcpSocket* client)
+void catchHelloPacket(QTcpSocket* socket)
 {
-    const auto context = new QObject { client };
-    QObject::connect(client, &QTcpSocket::readyRead, context, [context, &client]() {
-        if (!clients.first) {
-            clients.first = client;
-        }
-        else if (!clients.second) {
-            clients.second = client;
+    const auto context = new QObject { socket };
+    QObject::connect(socket, &QTcpSocket::readyRead, context, [context, socket]() {
+        const auto firstPacket = socket->readAll();
+        if ("remote" == firstPacket) {
+            changeSocket(RemoteSocket, socket);
         }
         else {
-            qCritical() << "Internal error!";
-            client->deleteLater();
+            if (RemoteSocket) {
+                RemoteSocket->write(firstPacket);
+            }
+            changeSocket(ClientSocket, socket);
         }
 
-        if (clients.first && clients.second) {
-            connectSockets("_one", *clients.first, *clients.second);
-            connectSockets("_two", *clients.second, *clients.first);
+        if (ClientSocket && RemoteSocket) {
+            connectSockets("cli", *ClientSocket, *RemoteSocket);
+            connectSockets("rms", *RemoteSocket, *ClientSocket);
             delete context;
         }
     });
 }
 
-void watchClientConnection(QTcpSocket* client)
+void watchSocketConnection(QTcpSocket* socket)
 {
-    QObject::connect(client, &QTcpSocket::disconnected, client, []() {
+    QObject::connect(socket, &QTcpSocket::disconnected, socket, [socket]() {
         qDebug() << "Client disconnected";
-        clients.first->deleteLater();
-        clients.second->deleteLater();
-        clients = {};
+        socket->deleteLater();
     });
 }
 
@@ -55,15 +62,15 @@ int main(int argc, char *argv[])
 
     QObject::connect(&server, &QTcpServer::newConnection, &server, [&server]() {
         qInfo() << "New connection";
-        const auto client = server.nextPendingConnection();
-        catchKeyPacket(client);
-        watchClientConnection(client);
+        const auto socket = server.nextPendingConnection();
+        catchHelloPacket(socket);
+        watchSocketConnection(socket);
     });
 
     auto ok = false;
     const auto port = app.arguments().at(1).toInt(&ok);
     if (!server.listen(QHostAddress::Any, port)) {
-        qCritical() << "Server could not start";
+        qCritical() << "Server could not start" << server.errorString();
         return 1;
     }
 
