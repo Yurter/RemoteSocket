@@ -30,12 +30,14 @@ void catchHelloPacket(QTcpSocket* socket)
         const auto firstPacket = socket->readAll();
         if ("remote" == firstPacket) {
             changeSocket(RemoteSocket, socket);
+            qInfo() << "remote socket changed";
         }
         else {
             if (RemoteSocket) {
                 RemoteSocket->write(firstPacket);
             }
             changeSocket(ClientSocket, socket);
+            qInfo() << "client socket changed";
         }
 
         if (ClientSocket && RemoteSocket) {
