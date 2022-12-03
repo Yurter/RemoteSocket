@@ -58,6 +58,12 @@ void connectSockets(const QString& srsName, QTcpSocket& srs, QTcpSocket& dst)
     });
 }
 
+void sendHelloPacket(QTcpSocket& remoteSocket)
+{
+    qDebug() << "About to send hello packet";
+    remoteSocket.write("remote");
+}
+
 int main(int argc, char *argv[])
 {
     QCoreApplication app { argc, argv };
@@ -77,6 +83,8 @@ int main(int argc, char *argv[])
 
     connectSockets("remote", remoteSocket, localSocket);
     connectSockets("local", localSocket, remoteSocket);
+
+    sendHelloPacket(remoteSocket);
 
     qInfo() << "Started...";
 
